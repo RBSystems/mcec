@@ -56,6 +56,7 @@ namespace MCEControl {
         protected ILog Log4 { get => log4; set => log4 = value; }
 
         protected ServiceBase() {
+            CurrentStatus  = ServiceStatus.Stopped;
             Log4 = log4net.LogManager.GetLogger("MCEControl");
         }
 
