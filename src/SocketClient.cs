@@ -157,7 +157,7 @@ namespace MCEControl {
                                     // the NEXT line starts with a \n which will cause us to come right back here and sb.Length will be 0,
                                     // thus we'll ignore it
                                     if (sb.Length > 0) {
-                                        SendNotification(ServiceNotification.ReceivedData, ServiceStatus.Connected, new ClientReplyContext(_tcpClient), sb.ToString());
+                                        SendNotification(ServiceNotification.ReceivedLine, ServiceStatus.Connected, new ClientReplyContext(_tcpClient), sb.ToString());
                                         sb.Clear();
                                         System.Threading.Thread.Sleep(100);
                                     }

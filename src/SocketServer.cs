@@ -257,7 +257,7 @@ namespace MCEControl {
                         case (byte)'\0':
                             // Skip any delimiter chars that might have been left from earlier input
                             if (clientContext.CmdBuilder.Length > 0) {
-                                SendNotification(ServiceNotification.ReceivedData, CurrentStatus, clientContext, clientContext.CmdBuilder.ToString());
+                                SendNotification(ServiceNotification.ReceivedLine, CurrentStatus, clientContext, clientContext.CmdBuilder.ToString());
                                 // Reset n to start new command
                                 clientContext.CmdBuilder.Clear();
                             }

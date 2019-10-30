@@ -167,7 +167,7 @@ namespace MCEControl {
                         string cmd = sb.ToString();
                         sb.Length = 0;
                         if (cmd.Length > 0)
-                            SendNotification(ServiceNotification.ReceivedData,
+                            SendNotification(ServiceNotification.ReceivedLine,
                                             CurrentStatus,
                                             new SerialReplyContext(_serialPort),
                                             cmd);

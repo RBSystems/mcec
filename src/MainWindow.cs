@@ -480,7 +480,7 @@ namespace MCEControl {
             String s = "";
 
             switch (notification) {
-                case ServiceNotification.ReceivedData:
+                case ServiceNotification.ReceivedLine:
                     Debug.Assert(serverReplyContext.Socket.RemoteEndPoint != null, notification.ToString());
                     s = $"Server: Received from Client #{serverReplyContext.ClientNumber} at {serverReplyContext.Socket.RemoteEndPoint}: {msg}";
                     Logger.Instance.Log4.Info(s);
@@ -596,7 +596,7 @@ namespace MCEControl {
                     }
                     break;
 
-                case ServiceNotification.ReceivedData:
+                case ServiceNotification.ReceivedLine:
                     Logger.Instance.Log4.Info($"Client: Received; {msg}");
                     ReceivedData(reply, (string)msg);
                     return;
@@ -639,7 +639,7 @@ namespace MCEControl {
                     }
                     break;
 
-                case ServiceNotification.ReceivedData:
+                case ServiceNotification.ReceivedLine:
                     Logger.Instance.Log4.Info($"SerialServer: Received: {msg}");
                     ReceivedData(reply, (string)msg);
                     return;

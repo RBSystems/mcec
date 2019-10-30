@@ -18,7 +18,7 @@ namespace MCEControl {
         None = 0,
         Initialized = 1,
         StatusChange,
-        ReceivedData,
+        ReceivedLine,
         ClientConnected,
         ClientDisconnected,
         Write,
