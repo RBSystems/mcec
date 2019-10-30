@@ -21,6 +21,9 @@ using WindowsInput.Native;
 
 namespace MCEControl {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1501", Justification = "WinForms generated", Scope = "namespace")]
+
+    // CommandWindow presents a modeless window that shows the user all active commands.
+    // Enables testing of commands.
     public partial class CommandWindow : Form {
         private readonly log4net.ILog log4;
 
@@ -31,8 +34,6 @@ namespace MCEControl {
         
         private void CommandWindow_Load(object sender, EventArgs e) {
             Icon = MainWindow.Instance.Icon;
-
-
         }
 
         private void CommandWindow_FormClosing(object sender, FormClosingEventArgs e) {
@@ -41,10 +42,6 @@ namespace MCEControl {
                 MainWindow.Instance.Settings.ShowCommandWindow = false;
                 e.Cancel = true;
             }
-        }
-
-        private void listCmds_ItemActivate(object sender, EventArgs e) {
-
         }
 
         private void buttonSendChars_Click(object sender, EventArgs e) {

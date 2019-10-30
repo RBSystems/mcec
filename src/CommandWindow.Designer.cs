@@ -100,7 +100,6 @@
             this.listCmds.TabIndex = 6;
             this.listCmds.UseCompatibleStateImageBehavior = false;
             this.listCmds.View = System.Windows.Forms.View.Details;
-            this.listCmds.ItemActivate += new System.EventHandler(this.listCmds_ItemActivate);
             this.listCmds.DoubleClick += new System.EventHandler(this.listCmds_DoubleClick);
             // 
             // columnCmd
