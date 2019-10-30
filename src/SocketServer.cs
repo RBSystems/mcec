@@ -29,6 +29,7 @@ namespace MCEControl {
         // total number of clients connected at any time. Since multiple threads
         // can access this variable, modifying this variable should be done
         // in a thread safe manner
+        // TODO: Ask and asnwer the question: "Why not just use _clientList.Count?". It has "snapshot semantics". 
         private int _clientCount;
 
         #region IDisposable Members
@@ -159,6 +160,7 @@ namespace MCEControl {
             }
             catch (SocketException se) {
                 SendNotification(ServiceNotification.Error, CurrentStatus, serverReplyContext, $"BeginReceive: {se.Message}, {se.HResult:X} ({se.SocketErrorCode})");
+                // BUGBUG: This closes the entire socket, disconnecting all clients. 
                 CloseSocket(serverReplyContext);
             }
         }
@@ -175,6 +177,7 @@ namespace MCEControl {
                 Log4.Debug("Closing Socket #" + serverReplyContext.ClientNumber);
                 Interlocked.Decrement(ref _clientCount);
                 SendNotification(ServiceNotification.ClientDisconnected, CurrentStatus, serverReplyContext);
+                // BUGBUG: This closes the entire socket, disconnecting all clients.
                 socket.Close();
             }
         }

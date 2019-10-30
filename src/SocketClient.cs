@@ -25,10 +25,16 @@ namespace MCEControl {
     /// and must be threadsafe.
     /// 
     /// </summary>
+    // TODO: I don't think this class is actually threadsafe. E.g. each time
+    // Start() is called it recreates _tcpClient. Should it explicitly be a singelton?
+    // Will there ever be multiple instances of it? (not in current user model)
     public sealed class SocketClient : ServiceBase, IDisposable {
         private readonly string _host = "";
         private readonly int _port;
         private readonly int _clientDelayTime;
+
+        private TcpClient _tcpClient;
+        private BackgroundWorker _bw;
 
         public SocketClient(AppSettings settings) {
             if (settings is null) throw new ArgumentNullException(nameof(settings));
@@ -50,9 +56,6 @@ namespace MCEControl {
             Dispose();
         }
 
-        private TcpClient _tcpClient;
-        private BackgroundWorker _bw;
-
         private void Dispose(bool disposing) {
             if (disposing) {
                 if (_bw != null) {
@@ -70,6 +73,9 @@ namespace MCEControl {
 
         public void Start(bool delay = false) {
             var currentCmd = new StringBuilder();
+
+            // TODO: What if this function is called twice?
+            // TODO: Should we call Stop() here?
             _tcpClient = new TcpClient();
             _bw = new BackgroundWorker {
                 WorkerReportsProgress = false,
@@ -107,6 +113,7 @@ namespace MCEControl {
             // TODO: Implement notifications
         }
 
+        // Connect is called on the _bw thread
         private void Connect() {
             SetStatus(ServiceStatus.Started, $"{_host}:{_port}");
 
@@ -120,26 +127,33 @@ namespace MCEControl {
                     throw new IOException($"{_host}:{_port} didn't resolve to a valid address.");
 
                 endPoint = new IPEndPoint(ipv4Addresses[0], _port);
-                
+
+                // TODO: Understand why we need Connect to be on the _bw thread. _tcpClient.BeginConnect
+                // creates a new thread, right?
                 _tcpClient.BeginConnect(endPoint.Address, _port, ar => {
+                    // TODO: Is using _tcpClient to detect shutdown threadsafe?
                     if (_tcpClient == null)
                         return;
                     try {
                         Log4.Debug($"Client BeginConnect: { _host}:{ _port}");
                         _tcpClient.EndConnect(ar);
-                        Log4.Debug($"Client Back from EndConnect: { _host}:{ _port}");
+                        Log4.Debug($"Client BeginConnect: Back from EndConnect: { _host}:{ _port}");
                         SetStatus(ServiceStatus.Connected, $"{_host}:{_port}");
                         StringBuilder sb = new StringBuilder();
-                        while (_bw != null &&
-                            !_bw.CancellationPending &&
-                            CurrentStatus == ServiceStatus.Connected &&
-                            _tcpClient != null &&
-                            _tcpClient.Connected) {
+                        // TODO: This is a hot mess. This should be as simple as
+                        // while CurrentStatus == ServiceStatus.Connected. All the other
+                        // checks should be redundant (asserts w/in the while body).
+                        while (CurrentStatus == ServiceStatus.Connected && 
+                               _bw != null && !_bw.CancellationPending &&
+                               _tcpClient != null && _tcpClient.Connected) {
                             int input = _tcpClient.GetStream().ReadByte();
                             switch (input) {
                                 case (byte)'\r':
                                 case (byte)'\n':
                                 case (byte)'\0':
+                                    // This ends up throwing away any extraneous EOL chars. E.g. if the line ends with \r\n (CRLF) 
+                                    // the NEXT line starts with a \n which will cause us to come right back here and sb.Length will be 0,
+                                    // thus we'll ignore it
                                     if (sb.Length > 0) {
                                         SendNotification(ServiceNotification.ReceivedData, ServiceStatus.Connected, new ClientReplyContext(_tcpClient), sb.ToString());
                                         sb.Clear();
