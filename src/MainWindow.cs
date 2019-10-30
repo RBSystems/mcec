@@ -339,38 +339,21 @@ namespace MCEControl {
             }
         }
 
-        private void ShowCommandWindow() {
-            if (this.InvokeRequired)
-                this.BeginInvoke((MethodInvoker)delegate () { ShowCommandWindow(); });
-            else {
-                cmdWindow.Visible = Settings.ShowCommandWindow = true;
-            }
-        }
-
-        private void HideCommandWindow() {
-            if (this.InvokeRequired)
-                this.BeginInvoke((MethodInvoker)delegate () { HideCommandWindow(); });
-            else {
-                Settings.ShowCommandWindow = cmdWindow.Visible = false;
-            }
-        }
-
-        /// <summary>
-        /// Anytime a client or server receives data that looks like a command, this function is called.
-        /// </summary>
-        /// <param name="reply">THe reply context any replies should be sent to</param>
-        /// <param name="cmd">the command string</param>
+        // Anytime a client or server receives data that looks like a command, ReceivData() is called.
+        // Those calls could come from threads other than the UI thread. This implementation relies on
+        // the async behavior of BeginInvoke such that they are each handled sequentially, in the 
+        // order they happened. 
         private void ReceivedData(Reply reply, String cmd) {
             // To ensure we are single-threaded for Invoker, check if we're on UI thread
             // if not, use Invoke to get onto UI thread.
-            //
-            // TOOD: This is probably not the right model. What we should do is have 
-            // the Invoker run on it's won thread. 
+
             if (this.InvokeRequired)
                 this.BeginInvoke((MethodInvoker)delegate () { ReceivedData(reply, cmd); });
             else
                 try {
                     Invoker.Enqueue(reply, cmd);
+
+                    // TOOD: We should have the Invoker run 'executes' on a different thread. 
                     Invoker.ExecuteNext();
                 }
                 catch (Exception e) {
@@ -379,6 +362,7 @@ namespace MCEControl {
         }
 
         // Sends a line of text (adds a "\n" to end) to connected client and server
+        // TODO: Support CRLF (\r\n) in addition to just LF (\n). 
         public void SendLine(string v) {
             //Logger.Instance.Log4.Info($"Send: {v}");
             if (client != null)
@@ -478,8 +462,11 @@ namespace MCEControl {
             }
         }
 
-        // Notify callback for the TCP/IP Server
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1062:Validate arguments of public methods", Justification = "<Pending>")]
+        // =================== Server, SerialServer, & Client call back handlers =============
+        //
+        // Notify callback for the TCP/IP Server. Can be called from a thread other than UI thread
+        //
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1062:Validate arguments of public methods", Justification = "They get validated in Handle* fn")]
         public void serverSocketCallbackHandler(ServiceNotification notification, ServiceStatus status, Reply reply, String msg) {
             if (notification == ServiceNotification.StatusChange)
                 HandleSocketServerStatusChange(status);
@@ -668,6 +655,8 @@ namespace MCEControl {
             Logger.Instance.Log4.Info(s);
         }
 
+        //=================== User actions ==============================
+
         private void ShowSettings(string defaultTabName) {
             var d = new SettingsDialog(Settings) {
                 DefaultTab = defaultTabName
@@ -684,6 +673,22 @@ namespace MCEControl {
                 Start();
             }
             d.Dispose();
+        }
+        
+        private void ShowCommandWindow() {
+            if (this.InvokeRequired)
+                this.BeginInvoke((MethodInvoker)delegate () { ShowCommandWindow(); });
+            else {
+                cmdWindow.Visible = Settings.ShowCommandWindow = true;
+            }
+        }
+
+        private void HideCommandWindow() {
+            if (this.InvokeRequired)
+                this.BeginInvoke((MethodInvoker)delegate () { HideCommandWindow(); });
+            else {
+                Settings.ShowCommandWindow = cmdWindow.Visible = false;
+            }
         }
 
         // ----------------------------------------
