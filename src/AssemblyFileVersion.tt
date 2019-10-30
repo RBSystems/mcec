@@ -12,14 +12,14 @@
 	string file = Path.Combine(dir, "..\\Installer\\version.txt");
 	string contents = File.ReadAllText(file); 
  
+    // major.minor.fix.build - build may be missing
 	string[] parts = contents.Split('.');
-	int build;
-	if (int.TryParse(parts[3], out build))
-	{
-		// increment the build number
-		parts[3] = (build + 1).ToString();
-	}
-	string version = string.Join(".", parts);
+	int build = 0;
+	if (parts.Length > 3 && int.TryParse(parts[3], out build))
+        build++;
+
+    string version = $"{parts[0]}.{parts[1]}.{parts[2]}.{build}";
+
 	// write the new version number back to the file
 	File.WriteAllText(file, version);
 	Console.WriteLine("Generated Build #: " + version);
