@@ -50,10 +50,12 @@ namespace MCEControl {
                 _clientList.TryRemove(i, out socket);
                 if (socket != null) {
                     Log4.Debug("Closing Socket #" + i);
+                    socket.Shutdown(SocketShutdown.Both);
                     socket.Close();
                 }
             }
             if (_mainSocket != null) {
+                _mainSocket.Shutdown(SocketShutdown.Both);
                 _mainSocket.Close();
                 _mainSocket = null;
             }
@@ -160,7 +162,6 @@ namespace MCEControl {
             }
             catch (SocketException se) {
                 SendNotification(ServiceNotification.Error, CurrentStatus, serverReplyContext, $"BeginReceive: {se.Message}, {se.HResult:X} ({se.SocketErrorCode})");
-                // BUGBUG: This closes the entire socket, disconnecting all clients. 
                 CloseSocket(serverReplyContext);
             }
         }
@@ -177,7 +178,7 @@ namespace MCEControl {
                 Log4.Debug("Closing Socket #" + serverReplyContext.ClientNumber);
                 Interlocked.Decrement(ref _clientCount);
                 SendNotification(ServiceNotification.ClientDisconnected, CurrentStatus, serverReplyContext);
-                // BUGBUG: This closes the entire socket, disconnecting all clients.
+                socket.Shutdown(SocketShutdown.Both);
                 socket.Close();
             }
         }
@@ -308,6 +309,7 @@ namespace MCEControl {
                 }
                 catch (SocketException err) {
                     // Connect failed so close the socket and try the next address
+                    clientSocket.Shutdown(SocketShutdown.Both);
                     clientSocket.Close();
                     clientSocket = null;
                     SendNotification(ServiceNotification.Wakeup, CurrentStatus, null,
