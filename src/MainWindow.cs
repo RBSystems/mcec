@@ -343,12 +343,12 @@ namespace MCEControl {
         // Those calls could come from threads other than the UI thread. This implementation relies on
         // the async behavior of BeginInvoke such that they are each handled sequentially, in the 
         // order they happened. 
-        private void ReceivedData(Reply reply, String cmd) {
+        private void ReceivedLine(Reply reply, String cmd) {
             // To ensure we are single-threaded for Invoker, check if we're on UI thread
             // if not, use Invoke to get onto UI thread.
 
             if (this.InvokeRequired)
-                this.BeginInvoke((MethodInvoker)delegate () { ReceivedData(reply, cmd); });
+                this.BeginInvoke((MethodInvoker)delegate () { ReceivedLine(reply, cmd); });
             else
                 try {
                     Invoker.Enqueue(reply, cmd);
@@ -484,7 +484,7 @@ namespace MCEControl {
                     Debug.Assert(serverReplyContext.Socket.RemoteEndPoint != null, notification.ToString());
                     s = $"Server: Received from Client #{serverReplyContext.ClientNumber} at {serverReplyContext.Socket.RemoteEndPoint}: {msg}";
                     Logger.Instance.Log4.Info(s);
-                    ReceivedData(serverReplyContext, msg);
+                    ReceivedLine(serverReplyContext, msg);
                     return;
 
                 case ServiceNotification.Write:
@@ -598,7 +598,7 @@ namespace MCEControl {
 
                 case ServiceNotification.ReceivedLine:
                     Logger.Instance.Log4.Info($"Client: Received; {msg}");
-                    ReceivedData(reply, (string)msg);
+                    ReceivedLine(reply, (string)msg);
                     return;
 
                 case ServiceNotification.Error:
@@ -641,7 +641,7 @@ namespace MCEControl {
 
                 case ServiceNotification.ReceivedLine:
                     Logger.Instance.Log4.Info($"SerialServer: Received: {msg}");
-                    ReceivedData(reply, (string)msg);
+                    ReceivedLine(reply, (string)msg);
                     return;
 
                 case ServiceNotification.Error:
