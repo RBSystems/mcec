@@ -57,6 +57,9 @@ namespace MCEControl {
             });
         }
 
+        // If running from default install location (in Program Files) find the
+        // .commands, .settings, and .log files in %appdata%. Otherwise find them in the 
+        // directory MCEControl.exe was run from.
         internal static string ConfigPath {
             get {
                 // Get dir of mcecontrol.exe

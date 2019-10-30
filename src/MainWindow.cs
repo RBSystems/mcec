@@ -27,6 +27,12 @@ using Microsoft.Win32;
 using System.Drawing;
 
 namespace MCEControl {
+    // 
+    // MCE Controller Main Window. A classic WinForms window. Runs main thread. Hosts 
+    // - Menu
+    // - Log
+    // - Status bar
+    // Minimizes to task bar
     public partial class MainWindow : Form {
         // MainWindow is a singleton
         private static readonly Lazy<MainWindow> lazy = new Lazy<MainWindow>(() => new MainWindow());
@@ -43,23 +49,23 @@ namespace MCEControl {
         public SocketClient Client { get { return client; } }
         private SerialServer serialServer;
         public SerialServer SerialServer { get { return serialServer; } }
-
-
-        // Commands
+        
+        // Commands - The "Invoker" in the "Command" pattern.
         private Commands commands;
         public Commands Invoker { get => commands; set => commands = value; }
 
+        // .commands file is monitored for changes and reloaded if it does
+        private CommandFileWatcher watcher;
+
+        // Non-modal window enabling viewing all commands and testing them
         private CommandWindow cmdWindow;
 
         // Indicates whether user hit the close box (minimize)
         // or the app is exiting
         private bool shuttingDown;
 
-        // Settings
+        // AppSettings holds all settings. 
         public AppSettings Settings { get => settings; set => settings = value; }
-        // If running from default install location (in Program Files) find the
-        // .commands, .settings, and .log files in %appdata%. Otherwise find them in the 
-        // directory MCEControl.exe was run from.
 
         public MainWindow() {
             InitializeComponent();
@@ -73,10 +79,7 @@ namespace MCEControl {
             sendAwakeMenuItem.Enabled = false;
         }
 
-        /// <summary>
-        /// Clean up any resources being used.
-        /// </summary>
-        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
+        // Clean up any resources being used.
         protected override void Dispose(bool disposing) {
             if (disposing) {
                 // When the app exits we need to un-shift any modify keys that might
@@ -109,6 +112,7 @@ namespace MCEControl {
             }
             base.Dispose(disposing);
         }
+
         protected override void WndProc(ref Message m) {
             // If the session is being logged off, or the machine is shutting
             // down...
@@ -131,10 +135,11 @@ namespace MCEControl {
             if (cmdWindow == null)
                 cmdWindow = new CommandWindow();
 
+            LoadCommands();
+
             // watch .command file for changes
             watcher = new CommandFileWatcher($@"{Program.ConfigPath}MCEControl.commands");
-            watcher.ChangedEvent += (o, a) => CmdTable_CommandsChangedEvent(o, a);
-            LoadCommands();
+            watcher.ChangedEvent += (o, a) => LoadCommands();
 
             if (Settings.HideOnStartup) {
                 Opacity = 0;
@@ -159,28 +164,18 @@ namespace MCEControl {
             Start();
         }
 
-        private void CmdTable_CommandsChangedEvent(object sender, EventArgs e) {
-
-            if (cmdWindow.InvokeRequired)
-                cmdWindow.BeginInvoke((Action)(() => { CmdTable_CommandsChangedEvent(sender, e); }));
-            else {
-                LoadCommands();
-            }
-        }
-
-        private CommandFileWatcher watcher;
-
         private void LoadCommands() {
-            if (Invoker != null) {
-                // Invoker.Dispose();
-            }
-
-            Invoker = Commands.Create($@"{Program.ConfigPath}MCEControl.commands", Settings.DisableInternalCommands);
-            if (Invoker == null)
-                notifyIcon.Visible = false;
+            if (this.InvokeRequired) 
+                this.BeginInvoke((MethodInvoker)delegate () { LoadCommands(); });
             else {
-                cmdWindow.RefreshList();
-                Logger.Instance.Log4.Info($"{Invoker.Count} commands available.");
+                // Load (reload) Commands
+                Invoker = Commands.Create($@"{Program.ConfigPath}MCEControl.commands", Settings.DisableInternalCommands);
+                if (Invoker == null)
+                    notifyIcon.Visible = false;
+                else {
+                    Logger.Instance.Log4.Info($"{Invoker.Count} commands available.");
+                    cmdWindow.RefreshList();
+                }
             }
         }
 
@@ -404,6 +399,7 @@ namespace MCEControl {
             }
         }
 
+        // Changes the Server status shown in the status bar
         private void SetServerStatus(ServiceStatus status) {
             if (statusStrip.InvokeRequired)
                 statusStrip.BeginInvoke((Action)(() => { SetServerStatus(status); }));
@@ -429,7 +425,7 @@ namespace MCEControl {
             }
         }
 
-        private delegate void SetClientStatusCallback(ServiceStatus status);
+        // Changes the Client status shown in the status bar
         private void SetClientStatus(ServiceStatus status) {
             if (statusStrip.InvokeRequired)
                 statusStrip.BeginInvoke((Action)(() => { SetClientStatus(status); }));
@@ -455,6 +451,7 @@ namespace MCEControl {
             }
         }
 
+        // Changes the Serial Server status shown in the status bar
         private void SetSerialStatus(ServiceStatus status) {
             if (statusStrip.InvokeRequired)
                 statusStrip.BeginInvoke((Action)(() => { SetSerialStatus(status); }));
