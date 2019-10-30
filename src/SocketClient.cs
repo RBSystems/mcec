@@ -146,6 +146,8 @@ namespace MCEControl {
                         while (CurrentStatus == ServiceStatus.Connected && 
                                _bw != null && !_bw.CancellationPending &&
                                _tcpClient != null && _tcpClient.Connected) {
+                            // TODO: Consider changing this to use TextReader and ReadLine()
+                            //       We're not doing anything special here w.r.t. lines. 
                             int input = _tcpClient.GetStream().ReadByte();
                             switch (input) {
                                 case (byte)'\r':

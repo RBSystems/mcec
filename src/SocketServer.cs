@@ -194,8 +194,7 @@ namespace MCEControl {
         enum TelnetOptions {
             SGA = 3
         }
-
-
+        
         // This the call back function which will be invoked when the socket
         // detects any client writing of data on the stream
         private void OnDataReceived(IAsyncResult async) {
@@ -212,6 +211,7 @@ namespace MCEControl {
                     return;
                 }
 
+                // TODO: Shouldn't all this logic be the same between Client/Server?
                 // _currentCommand contains the current command we are parsing out and 
                 // _currentIndex is the index into it
                 //int n = 0;
