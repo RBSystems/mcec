@@ -241,7 +241,7 @@ namespace MCEControl {
                 _tcpClient = tcpClient;
             }
 
-            public override void Send(String text) {
+            public override void SendReply(String text) {
                 if (text is null) throw new ArgumentNullException(nameof(text));
 
                 if (!_tcpClient.Connected) return;

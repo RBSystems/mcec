@@ -210,7 +210,7 @@ namespace MCEControl {
             public SerialReplyContext(SerialPort rs232) {
                 _rs232 = rs232;
             }
-            public override void Send(String text) {
+            public override void SendReply(String text) {
                 if (_rs232 != null && _rs232.IsOpen) {
                     _rs232.Write(text);
                 }

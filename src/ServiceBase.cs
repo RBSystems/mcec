@@ -45,9 +45,9 @@ namespace MCEControl {
     /// </summary>
     public abstract class Reply {
         //public abstract String Command { get; set; }
-        public abstract void Send(String text);
+        public abstract void SendReply(String text);
         public void WriteLine(String textLine) {
-            Send(textLine + Environment.NewLine);
+            SendReply(textLine + Environment.NewLine);
         }
     }
 

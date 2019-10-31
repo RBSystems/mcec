@@ -394,7 +394,7 @@ namespace MCEControl {
                 set { }
             }
 
-            public override void Send(String text) {
+            public override void SendReply(String text) {
                 _server.Send(text, this);
             }
         }
