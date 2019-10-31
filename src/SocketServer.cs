@@ -369,17 +369,16 @@ namespace MCEControl {
         }
 
         #region Nested type: ServerReplyContext
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "none")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "It works")]
         public class ServerReplyContext : Reply {
             internal StringBuilder CmdBuilder { get; set; }
             internal Socket Socket { get; set; }
             internal int ClientNumber { get; set; }
-
-
+            
             // Buffer to store the data sent by the client
+            // TODO: Make a Property
             [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1051:Do not declare visible instance fields", Justification = "none")]
             public byte[] DataBuffer = new byte[1024];
-
             private readonly SocketServer _server;
 
             // Constructor which takes a Socket and a client number
@@ -395,7 +394,7 @@ namespace MCEControl {
                 set { }
             }
 
-            public override void Write(String text) {
+            public override void Send(String text) {
                 _server.Send(text, this);
             }
         }
