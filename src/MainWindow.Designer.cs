@@ -128,17 +128,17 @@ namespace MCEControl
             // 
             // statusStrip
             // 
+            this.statusStrip.ImageScalingSize = new System.Drawing.Size(18, 18);
             this.statusStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.statusStripStatus,
             this.statusStripClient,
             this.statusStripServer,
             this.statusStripSerial});
             this.statusStrip.LayoutStyle = System.Windows.Forms.ToolStripLayoutStyle.HorizontalStackWithOverflow;
-            this.statusStrip.Location = new System.Drawing.Point(0, 393);
+            this.statusStrip.Location = new System.Drawing.Point(0, 194);
             this.statusStrip.Name = "statusStrip";
-            this.statusStrip.Padding = new System.Windows.Forms.Padding(2, 0, 28, 0);
             this.statusStrip.ShowItemToolTips = true;
-            this.statusStrip.Size = new System.Drawing.Size(759, 22);
+            this.statusStrip.Size = new System.Drawing.Size(380, 22);
             this.statusStrip.TabIndex = 2;
             this.statusStrip.Text = "MCE Controller";
             // 
@@ -206,8 +206,8 @@ namespace MCEControl
             this.helpToolStripMenuItem});
             this.menuStrip.Location = new System.Drawing.Point(0, 0);
             this.menuStrip.Name = "menuStrip";
-            this.menuStrip.Padding = new System.Windows.Forms.Padding(4, 4, 0, 4);
-            this.menuStrip.Size = new System.Drawing.Size(759, 27);
+            this.menuStrip.Padding = new System.Windows.Forms.Padding(2, 2, 0, 2);
+            this.menuStrip.Size = new System.Drawing.Size(380, 24);
             this.menuStrip.TabIndex = 3;
             this.menuStrip.Text = "menuStrip";
             // 
@@ -218,7 +218,7 @@ namespace MCEControl
             this.toolStripSeparator2,
             this.exitMenuItem});
             this.fileMenu.Name = "fileMenu";
-            this.fileMenu.Size = new System.Drawing.Size(37, 19);
+            this.fileMenu.Size = new System.Drawing.Size(37, 20);
             this.fileMenu.Text = "&File";
             // 
             // settingsMenuItem
@@ -248,7 +248,7 @@ namespace MCEControl
             this.toolStripSeparator1,
             this.sendAwakeMenuItem});
             this.commandsMenu.Name = "commandsMenu";
-            this.commandsMenu.Size = new System.Drawing.Size(81, 19);
+            this.commandsMenu.Size = new System.Drawing.Size(81, 20);
             this.commandsMenu.Text = "&Commands";
             // 
             // showCommandsMenuItem
@@ -286,7 +286,7 @@ namespace MCEControl
             this.toolStripSeparator4,
             this.aboutMenuItem});
             this.helpToolStripMenuItem.Name = "helpToolStripMenuItem";
-            this.helpToolStripMenuItem.Size = new System.Drawing.Size(44, 19);
+            this.helpToolStripMenuItem.Size = new System.Drawing.Size(44, 20);
             this.helpToolStripMenuItem.Text = "&Help";
             // 
             // docsMenuItem
@@ -325,33 +325,33 @@ namespace MCEControl
             this.logTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
+            this.logTextBox.BackColor = System.Drawing.SystemColors.Window;
             this.logTextBox.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.logTextBox.Cursor = System.Windows.Forms.Cursors.Default;
             this.logTextBox.Font = new System.Drawing.Font("Lucida Console", 8F);
             this.logTextBox.HideSelection = false;
-            this.logTextBox.Location = new System.Drawing.Point(0, 24);
+            this.logTextBox.Location = new System.Drawing.Point(0, 12);
             this.logTextBox.Margin = new System.Windows.Forms.Padding(0);
             this.logTextBox.Multiline = true;
             this.logTextBox.Name = "logTextBox";
             this.logTextBox.ReadOnly = true;
             this.logTextBox.ScrollBars = System.Windows.Forms.ScrollBars.Both;
-            this.logTextBox.Size = new System.Drawing.Size(759, 361);
+            this.logTextBox.Size = new System.Drawing.Size(380, 188);
             this.logTextBox.TabIndex = 1;
             this.logTextBox.WordWrap = false;
             // 
             // MainWindow
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(12F, 25F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.Window;
-            this.ClientSize = new System.Drawing.Size(759, 415);
+            this.ClientSize = new System.Drawing.Size(380, 216);
             this.Controls.Add(this.statusStrip);
             this.Controls.Add(this.menuStrip);
             this.Controls.Add(this.logTextBox);
             this.HelpButton = true;
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MainMenuStrip = this.menuStrip;
-            this.Margin = new System.Windows.Forms.Padding(6);
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.Name = "MainWindow";

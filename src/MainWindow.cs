@@ -470,14 +470,8 @@ namespace MCEControl {
         public void serverSocketCallbackHandler(ServiceNotification notification, ServiceStatus status, Reply reply, String msg) {
             if (notification == ServiceNotification.StatusChange)
                 HandleSocketServerStatusChange(status);
-            else {
-<<<<<<< HEAD
-                 HandleSocketServerNotification(notification, status, (SocketServer.ServerReplyContext)reply, msg);
-            }   
-=======
+            else 
                 HandleSocketServerNotification(notification, status, (SocketServer.ServerReplyContext)reply, msg);
-            }
->>>>>>> 269e50fab735425200b249c3428775d53b58043b
         }
 
         private void HandleSocketServerNotification(ServiceNotification notification, ServiceStatus status,
