@@ -7,6 +7,16 @@
 // Source on GitHub: https://github.com/tig/mcec  
 //-------------------------------------------------------------------
 using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Diagnostics;
+using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows.Forms;
@@ -14,18 +24,19 @@ using MCEControl.Properties;
 using Microsoft.Win32.Security;
 using log4net;
 using Microsoft.Win32;
+using System.Drawing;
 
-[assembly: System.CLSCompliant(true)]
 namespace MCEControl {
-    /// <summary>
-    /// Summary description for MainWindow.
-    /// </summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "CA2213")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1501", Justification = "WinForms generated", Scope = "namespace")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1506", Justification = "WinForms generated", Scope = "namespace")]
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage", "IDE0069")]
-    public class MainWindow : Form {
-        private readonly log4net.ILog log4;
+    // 
+    // MCE Controller Main Window. A classic WinForms window. Runs main thread. Hosts 
+    // - Menu
+    // - Log
+    // - Status bar
+    // Minimizes to task bar
+    public partial class MainWindow : Form {
+        // MainWindow is a singleton
+        private static readonly Lazy<MainWindow> lazy = new Lazy<MainWindow>(() => new MainWindow());
+        public static MainWindow Instance { get { return lazy.Value; } }
 
         // Persisted application settings
         private AppSettings settings;
@@ -38,116 +49,32 @@ namespace MCEControl {
         public SocketClient Client { get { return client; } }
         private SerialServer serialServer;
         public SerialServer SerialServer { get { return serialServer; } }
+        
+        // Commands - The "Invoker" in the "Command" pattern.
+        private Commands commands;
+        public Commands Invoker { get => commands; set => commands = value; }
 
+        // .commands file is monitored for changes and reloaded if it does
+        private CommandFileWatcher watcher;
 
-        // Commands
-        private CommandTable cmdTable;
-        public CommandTable CmdTable { get => cmdTable; set => cmdTable = value; }
-
+        // Non-modal window enabling viewing all commands and testing them
         private CommandWindow cmdWindow;
-
-        // Window controls
-        private MenuStrip menuStrip;
-        private ToolStripMenuItem fileMenu;
-        private ToolStripMenuItem exitMenuItem;
-        private ToolStripMenuItem commandsMenu;
-        private ToolStripMenuItem showCommandsMenuItem;
-        private ToolStripMenuItem openCommandsFolderMenuItem;
-        private ToolStripMenuItem sendAwakeMenuItem;
-        private ToolStripMenuItem helpToolStripMenuItem;
-        private ToolStripSeparator toolStripSeparator2;
-        private ToolStripSeparator toolStripSeparator1;
-        private ToolStripMenuItem wikiMenuItem;
-        private ToolStripSeparator toolStripSeparator3;
-        private ToolStripMenuItem checkUpdatesMenuItem;
-        private ToolStripSeparator toolStripSeparator4;
-        private ToolStripMenuItem aboutMenuItem;
-        private TextBox logTextBox;
-        private MenuItem menuSeparator5;
-        private MenuItem notifySettingsMenuItem;
-        private MenuItem menuSeparator4;
-        private MenuItem notifyStatusMenuItem;
-        private StatusStrip statusStrip;
-        private ToolStripStatusLabel statusStripStatus;
-        private ToolStripStatusLabel statusStripClient;
-        private ToolStripStatusLabel statusStripServer;
-        private ToolStripStatusLabel statusStripSerial;
-        private IContainer components;
-        private NotifyIcon notifyIcon;
-        private ContextMenu notifyMenu;
-        private MenuItem notifyExitMenuItem;
-
-
-        // MainWindow is a singleton
-        private static readonly Lazy<MainWindow> lazy = new Lazy<MainWindow>(() => new MainWindow());
-        private ToolStripMenuItem settingsMenuItem;
-
-        public static MainWindow Instance { get { return lazy.Value; } }
 
         // Indicates whether user hit the close box (minimize)
         // or the app is exiting
         private bool shuttingDown;
 
-        // Settings
+        // AppSettings holds all settings. 
         public AppSettings Settings { get => settings; set => settings = value; }
-        // If running from default install location (in Program Files) find the
-        // .commands, .settings, and .log files in %appdata%. Otherwise find them in the 
-        // directory MCEControl.exe was run from.
-        private static string ConfigPath {
-            get {
-                // Get dir of mcecontrol.exe
-                string path = AppDomain.CurrentDomain.BaseDirectory;
-                string programfiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-                string appdata = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-
-                // is this in Program Files?
-                if (path.Contains(programfiles)) {
-                    // We're running from the default install location. Use %appdata%.
-                    // strip % programfiles %
-                    path = $@"{appdata}\{path.Substring(programfiles.Length + 1)}";
-                }
-                return path;
-            }
-        }
-
-        // The main entry point for the application.
-        [STAThread]
-        public static void Main() {
-            // https://docs.microsoft.com/en-us/dotnet/framework/winforms/high-dpi-support-in-windows-forms
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-
-            // Start logging
-            Logger.Instance.LogFile = $@"{ConfigPath}MCEControl.log";
-            Logger.Instance.Log4.Debug("Main");
-
-            // TODO: Update to check for 4.7 or newer
-            if (!IsNet45OrNewer()) {
-                MessageBox.Show(Resources.Error_RequiresDotNetVersion);
-                return;
-            }
-
-            // Load AppSettings
-            Instance.Settings = AppSettings.Deserialize($@"{ConfigPath}{AppSettings.SettingsFileName}");
-
-            Application.Run(Instance);
-        }
-
-        public static bool IsNet45OrNewer() {
-            // Class "ReflectionContext" exists from .NET 4.5 onwards.
-            return Type.GetType("System.Reflection.ReflectionContext", false) != null;
-        }
 
         public MainWindow() {
-            log4 = Logger.Instance.Log4;
-
             InitializeComponent();
             Logger.Instance.LogTextBox = logTextBox;
 
             notifyIcon.Icon = Icon;
             ShowInTaskbar = true;
 
-            CheckVersion();
+            Program.CheckVersion();
             SetStatus("");
             sendAwakeMenuItem.Enabled = false;
         }
@@ -202,38 +129,54 @@ namespace MCEControl {
         }
 
         private void mainWindow_Load(object sender, EventArgs e) {
-            log4.Info($"Logger: Logging to {Logger.Instance.LogFile}");
+            Logger.Instance.Log4.Info($"Logger: Logging to {Logger.Instance.LogFile}");
             Logger.Instance.TextBoxThreshold = LogManager.GetLogger("MCEControl").Logger.Repository.LevelMap[Instance.Settings.TextBoxLogThreshold];
-
-            // Location can not be changed in constructor, has to be done here
-            Location = Settings.WindowLocation;
-            Size = Settings.WindowSize;
-
-            CmdTable = CommandTable.Create($@"{ConfigPath}MCEControl.commands", Settings.DisableInternalCommands);
-            if (CmdTable == null) {
-                MessageBox.Show(this, Resources.MCEController_commands_read_error, Resources.App_FullName);
-                notifyIcon.Visible = false;
-                Opacity = 100;
-            }
-            else {
-                Logger.Instance.Log4.Info($"{CmdTable.NumCommands} commands available.");
-                Opacity = (double)Settings.Opacity / 100;
-
-                if (Settings.HideOnStartup) {
-                    Opacity = 0;
-                    Win32.PostMessage(Handle, (UInt32)WM.SYSCOMMAND, (UInt32)SC.CLOSE, 0);
-                }
-            }
 
             if (cmdWindow == null)
                 cmdWindow = new CommandWindow();
 
-            logTextBox.Font = new System.Drawing.Font(logTextBox.Font.FontFamily, MainMenuStrip.Font.SizeInPoints-1, 
+            LoadCommands();
+
+            // watch .command file for changes
+            watcher = new CommandFileWatcher($@"{Program.ConfigPath}MCEControl.commands");
+            watcher.ChangedEvent += (o, a) => LoadCommands();
+
+            if (Settings.HideOnStartup) {
+                Opacity = 0;
+                Win32.PostMessage(Handle, (UInt32)WM.SYSCOMMAND, (UInt32)SC.CLOSE, 0);
+            }
+
+            logTextBox.Font = new System.Drawing.Font(logTextBox.Font.FontFamily, MainMenuStrip.Font.SizeInPoints - 1,
                 System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
             SystemEvents.UserPreferenceChanged += new UserPreferenceChangedEventHandler(SystemEvents_UserPreferenceChanged);
 
+            // Location can not be changed in constructor, has to be done here
+            // Use Window's default for location initially. Size needs highDPI conversion. 
+            if (Settings.WindowLocation.IsEmpty || Settings.WindowSize.IsEmpty) {
+                Size = new Size(this.LogicalToDeviceUnits(1024), this.LogicalToDeviceUnits(640));
+            }
+            else {
+                Location = Settings.WindowLocation;
+                Size = Settings.WindowSize;
+            }
+
             SetStatus($"Version: {Application.ProductVersion}");
             Start();
+        }
+
+        private void LoadCommands() {
+            if (this.InvokeRequired) 
+                this.BeginInvoke((MethodInvoker)delegate () { LoadCommands(); });
+            else {
+                // Load (reload) Commands
+                Invoker = Commands.Create($@"{Program.ConfigPath}MCEControl.commands", Settings.DisableInternalCommands);
+                if (Invoker == null)
+                    notifyIcon.Visible = false;
+                else {
+                    Logger.Instance.Log4.Info($"{Invoker.Count} commands available.");
+                    cmdWindow.RefreshList();
+                }
+            }
         }
 
         private void mainWindow_Closing(object sender, CancelEventArgs e) {
@@ -246,28 +189,8 @@ namespace MCEControl {
                 notifyIcon.Visible = true;
                 Hide();
             }
-        }
-
-        private void CheckVersion() {
-            Logger.Instance.Log4.Info($"MCE Controller Version: {Application.ProductVersion}");
-            var lv = new LatestVersion();
-            lv.GetLatestStableVersionAsync((o, version) => {
-                if (version == null && !String.IsNullOrWhiteSpace(lv.ErrorMessage)) {
-                    Logger.Instance.Log4.Info(
-                        $"Could not access tig.github.io/mcec to see if a newer version is available. {lv.ErrorMessage}");
-                }
-                else if (lv.CompareVersions() < 0) {
-                    Logger.Instance.Log4.Info(
-                        $"A newer version of MCE Controller ({version}) is available at tig.github.io/mcec.");
-                }
-                else if (lv.CompareVersions() > 0) {
-                    Logger.Instance.Log4.Info(
-                        $"You are are running a MORE recent version than can be found at tig.github.io/mcec ({version}).");
-                }
-                else {
-                    Logger.Instance.Log4.Info("You are running the most recent version of MCE Controller.");
-                }
-            });
+            else
+                Logger.Instance.Log4.Info("Exiting...");
         }
 
         private void Start() {
@@ -287,21 +210,25 @@ namespace MCEControl {
                 UserActivityMonitor.Instance.Start(Settings.ActivityMonitorDebounceTime);
         }
 
-        private delegate void StopCallback();
         private void Stop() {
-            if (cmdWindow != null) {
-                if (this.InvokeRequired)
-                    this.BeginInvoke((StopCallback)Stop);
-                else {
-                    UserActivityMonitor.Stop();
-                    StopClient();
-                    StopServer();
-                    StopSerialServer();
-                }
+            if (this.InvokeRequired)
+                this.BeginInvoke((MethodInvoker)delegate () { Stop(); });
+            else {
+                UserActivityMonitor.Stop();
+                StopClient();
+                StopServer();
+                StopSerialServer();
             }
         }
 
         public void ShutDown() {
+
+            if (this.InvokeRequired) {
+                Logger.Instance.Log4.Info("ShutDown InvokeRequired");
+                this.BeginInvoke((MethodInvoker)delegate () { ShutDown(); });
+                return;
+            }
+
             Logger.Instance.Log4.Info("ShutDown");
             shuttingDown = true;
 
@@ -397,12 +324,11 @@ namespace MCEControl {
             else
                 StopClient();
         }
-        private delegate void RestartClientCallback();
 
         private void RestartClient() {
             if (cmdWindow != null) {
                 if (this.InvokeRequired)
-                    this.BeginInvoke((RestartClientCallback)RestartClient);
+                    this.BeginInvoke((MethodInvoker)delegate () { RestartClient(); });
                 else {
                     StopClient();
                     if (!shuttingDown && Settings.ActAsClient && Settings.ClientDelayTime > 0) {
@@ -413,41 +339,35 @@ namespace MCEControl {
             }
         }
 
-        private delegate void ShowCommandWindowCallback();
-        private void ShowCommandWindow() {
+        // Anytime a client or server receives data that looks like a command, ReceivData() is called.
+        // Those calls could come from threads other than the UI thread. This implementation relies on
+        // the async behavior of BeginInvoke such that they are each handled sequentially, in the 
+        // order they happened. 
+        private void ReceivedLine(Reply reply, String cmd) {
+            // To ensure we are single-threaded for Invoker, check if we're on UI thread
+            // if not, use Invoke to get onto UI thread.
+
             if (this.InvokeRequired)
-                this.BeginInvoke((ShowCommandWindowCallback)ShowCommandWindow);
-            else {
-                cmdWindow.Visible = Settings.ShowCommandWindow = true;
-            }
-        }
+                this.BeginInvoke((MethodInvoker)delegate () { ReceivedLine(reply, cmd); });
+            else
+                try {
+                    Invoker.Enqueue(reply, cmd);
 
-        private delegate void HideCommandWindowCallback();
-
-        private void HideCommandWindow() {
-            if (this.InvokeRequired)
-                this.BeginInvoke((HideCommandWindowCallback)HideCommandWindow);
-            else {
-                Settings.ShowCommandWindow = cmdWindow.Visible = false;
-            }
-        }
-
-        private void ReceivedData(Reply reply, String cmd) {
-            try {
-                CmdTable.Execute(reply, cmd);
-            }
-            catch (Exception e) {
-                Logger.Instance.Log4.Info($"Command: ({cmd}) error: {e}");
-            }
+                    // TOOD: We should have the Invoker run 'executes' on a different thread. 
+                    Invoker.ExecuteNext();
+                }
+                catch (Exception e) {
+                    Logger.Instance.Log4.Info($"Command: ({cmd}) error: {e}");
+                }
         }
 
         // Sends a line of text (adds a "\n" to end) to connected client and server
-        internal void SendLine(string v) {
+        // TODO: Support CRLF (\r\n) in addition to just LF (\n). 
+        public void SendLine(string v) {
             //Logger.Instance.Log4.Info($"Send: {v}");
             if (client != null)
                 client.Send(v + "\n");
-
-            if (server != null)
+            else if (server != null)
                 server.Send(v + "\n");
 
             if (serialServer != null)
@@ -455,23 +375,18 @@ namespace MCEControl {
         }
 
         private void SetStatus(string text) {
-            if (statusStrip.InvokeRequired) {
-                statusStrip.BeginInvoke((Action)(() => {
-                    statusStripStatus.Text = text;
-                    notifyIcon.Text = text;
-                }));
-            }
+            if (statusStrip.InvokeRequired)
+                statusStrip.BeginInvoke((Action)(() => { SetStatus(text); }));
             else {
                 statusStripStatus.Text = text;
                 notifyIcon.Text = text;
             }
         }
 
-        private delegate void SetServerStatusCallback(ServiceStatus status);
+        // Changes the Server status shown in the status bar
         private void SetServerStatus(ServiceStatus status) {
-            if (statusStrip.InvokeRequired) {
-                statusStrip.BeginInvoke((SetServerStatusCallback)SetServerStatus, new object[] { status });
-            }
+            if (statusStrip.InvokeRequired)
+                statusStrip.BeginInvoke((Action)(() => { SetServerStatus(status); }));
             else {
                 statusStripServer.Text = $"Server on port {settings.ServerPort}";
                 switch (status) {
@@ -494,11 +409,10 @@ namespace MCEControl {
             }
         }
 
-        private delegate void SetClientStatusCallback(ServiceStatus status);
+        // Changes the Client status shown in the status bar
         private void SetClientStatus(ServiceStatus status) {
-            if (statusStrip.InvokeRequired) {
-                statusStrip.BeginInvoke((SetClientStatusCallback)SetClientStatus, new object[] { status });
-            }
+            if (statusStrip.InvokeRequired)
+                statusStrip.BeginInvoke((Action)(() => { SetClientStatus(status); }));
             else {
                 statusStripClient.Text = $"Client {settings.ClientHost}:{Settings.ClientPort}";
                 switch (status) {
@@ -521,11 +435,10 @@ namespace MCEControl {
             }
         }
 
-        private delegate void SetSerialStatusCallback(ServiceStatus status);
+        // Changes the Serial Server status shown in the status bar
         private void SetSerialStatus(ServiceStatus status) {
-            if (statusStrip.InvokeRequired) {
-                statusStrip.BeginInvoke((SetSerialStatusCallback)SetSerialStatus, new object[] { status });
-            }
+            if (statusStrip.InvokeRequired)
+                statusStrip.BeginInvoke((Action)(() => { SetSerialStatus(status); }));
             else {
                 // https://en.wikipedia.org/wiki/8-N-1
                 statusStripSerial.Text = $"Serial {settings.SerialServerBaudRate}/{settings.SerialServerPortName} {settings.SerialServerDataBits}-{settings.SerialServerParity}-{settings.SerialServerStopBits}-{settings.SerialServerHandshake}";
@@ -549,13 +462,22 @@ namespace MCEControl {
             }
         }
 
-        // Notify callback for the TCP/IP Server
+        // =================== Server, SerialServer, & Client call back handlers =============
+        //
+        // Notify callback for the TCP/IP Server. Can be called from a thread other than UI thread
+        //
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1062:Validate arguments of public methods", Justification = "They get validated in Handle* fn")]
         public void serverSocketCallbackHandler(ServiceNotification notification, ServiceStatus status, Reply reply, String msg) {
             if (notification == ServiceNotification.StatusChange)
                 HandleSocketServerStatusChange(status);
             else {
+<<<<<<< HEAD
                  HandleSocketServerNotification(notification, status, (SocketServer.ServerReplyContext)reply, msg);
             }   
+=======
+                HandleSocketServerNotification(notification, status, (SocketServer.ServerReplyContext)reply, msg);
+            }
+>>>>>>> 269e50fab735425200b249c3428775d53b58043b
         }
 
         private void HandleSocketServerNotification(ServiceNotification notification, ServiceStatus status,
@@ -563,11 +485,11 @@ namespace MCEControl {
             String s = "";
 
             switch (notification) {
-                case ServiceNotification.ReceivedData:
+                case ServiceNotification.ReceivedLine:
                     Debug.Assert(serverReplyContext.Socket.RemoteEndPoint != null, notification.ToString());
                     s = $"Server: Received from Client #{serverReplyContext.ClientNumber} at {serverReplyContext.Socket.RemoteEndPoint}: {msg}";
                     Logger.Instance.Log4.Info(s);
-                    ReceivedData(serverReplyContext, msg);
+                    ReceivedLine(serverReplyContext, msg);
                     return;
 
                 case ServiceNotification.Write:
@@ -662,30 +584,30 @@ namespace MCEControl {
             switch (notify) {
                 case ServiceNotification.StatusChange:
                     if (status == ServiceStatus.Started) {
-                        log4.Debug("ClientSocketNotificationHandler - ServiceStatus.Started");
+                        Logger.Instance.Log4.Debug("ClientSocketNotificationHandler - ServiceStatus.Started");
                         s = $"Connecting to {Settings.ClientHost}:{Settings.ClientPort}";
                     }
                     else if (status == ServiceStatus.Connected) {
-                        log4.Debug("ClientSocketNotificationHandler - ServiceStatus.Connected");
+                        Logger.Instance.Log4.Debug("ClientSocketNotificationHandler - ServiceStatus.Connected");
                         s = $"Connected to {Settings.ClientHost}:{Settings.ClientPort}";
                     }
                     else if (status == ServiceStatus.Stopped) {
-                        log4.Debug("ClientSocketNotificationHandler - ServiceStatus.Stopped");
+                        Logger.Instance.Log4.Debug("ClientSocketNotificationHandler - ServiceStatus.Stopped");
                         s = "Stopped.";
                     }
                     else if (status == ServiceStatus.Sleeping) {
-                        log4.Debug("ClientSocketNotificationHandler - ServiceStatus.Sleeping");
+                        Logger.Instance.Log4.Debug("ClientSocketNotificationHandler - ServiceStatus.Sleeping");
                         s = $"Waiting {(Settings.ClientDelayTime / 1000)} seconds to connect.";
                     }
                     break;
 
-                case ServiceNotification.ReceivedData:
+                case ServiceNotification.ReceivedLine:
                     Logger.Instance.Log4.Info($"Client: Received; {msg}");
-                    ReceivedData(reply, (string)msg);
+                    ReceivedLine(reply, (string)msg);
                     return;
 
                 case ServiceNotification.Error:
-                    log4.Debug($"ClientSocketNotificationHandler - ServiceStatus.Error: {(string)msg}");
+                    Logger.Instance.Log4.Debug($"ClientSocketNotificationHandler - ServiceStatus.Error: {(string)msg}");
                     Logger.Instance.Log4.Info($"Client: Error; {(string)msg}");
                     RestartClient();
                     return;
@@ -722,9 +644,9 @@ namespace MCEControl {
                     }
                     break;
 
-                case ServiceNotification.ReceivedData:
+                case ServiceNotification.ReceivedLine:
                     Logger.Instance.Log4.Info($"SerialServer: Received: {msg}");
-                    ReceivedData(reply, (string)msg);
+                    ReceivedLine(reply, (string)msg);
                     return;
 
                 case ServiceNotification.Error:
@@ -737,6 +659,8 @@ namespace MCEControl {
             }
             Logger.Instance.Log4.Info(s);
         }
+
+        //=================== User actions ==============================
 
         private void ShowSettings(string defaultTabName) {
             var d = new SettingsDialog(Settings) {
@@ -754,6 +678,22 @@ namespace MCEControl {
                 Start();
             }
             d.Dispose();
+        }
+        
+        private void ShowCommandWindow() {
+            if (this.InvokeRequired)
+                this.BeginInvoke((MethodInvoker)delegate () { ShowCommandWindow(); });
+            else {
+                cmdWindow.Visible = Settings.ShowCommandWindow = true;
+            }
+        }
+
+        private void HideCommandWindow() {
+            if (this.InvokeRequired)
+                this.BeginInvoke((MethodInvoker)delegate () { HideCommandWindow(); });
+            else {
+                Settings.ShowCommandWindow = cmdWindow.Visible = false;
+            }
         }
 
         // ----------------------------------------
@@ -777,7 +717,7 @@ namespace MCEControl {
         }
 
         private void aboutMenuItem_Click(object sender, EventArgs e) {
-            var a = new AboutBox();
+            var a = new About();
             a.ShowDialog(this);
             a.Dispose();
         }
@@ -794,27 +734,20 @@ namespace MCEControl {
             ShowCommandWindow();
         }
         private void openCommandsFolderMenuItem_Click(object sender, EventArgs e) {
-            Process.Start(ConfigPath);
+            Process.Start(Program.ConfigPath);
         }
 
-        private void helpMenuItem_Click(object sender, EventArgs e) {
-            Process.Start("https://github.com/tig/mcec/wiki");
-        }
 
-        private void wikiMenuItem_Click(object sender, EventArgs e) {
-            Process.Start("https://github.com/tig/mcec/wiki");
+        private void docsMenuItem_Click(object sender, EventArgs e) {
+            Process.Start("https://tig.github.io/mcec/");
         }
 
         private void MenuItemEditCommands_Click(object sender, EventArgs e) {
-            Process.Start(ConfigPath);
-        }
-
-        private void helpMenuItem_Click(object sender, CancelEventArgs e) {
-            Process.Start("https://github.com/tig/mcec/wiki");
+            Process.Start(Program.ConfigPath);
         }
 
         private void updatesMenuItem_Click(object sender, EventArgs e) {
-            CheckVersion();
+            Program.CheckVersion();
         }
 
         private void statusStripClient_Click(object sender, EventArgs e) {
@@ -839,329 +772,6 @@ namespace MCEControl {
             ShowSettings("General");
         }
 
-        #region Windows Form Designer generated code
-
-        /// <summary>
-        /// Required method for Designer support - do not modify
-        /// the contents of this method with the code editor.
-        /// </summary>
-        private void InitializeComponent() {
-            this.components = new System.ComponentModel.Container();
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainWindow));
-            this.notifyIcon = new System.Windows.Forms.NotifyIcon(this.components);
-            this.notifyMenu = new System.Windows.Forms.ContextMenu();
-            this.notifyStatusMenuItem = new System.Windows.Forms.MenuItem();
-            this.menuSeparator4 = new System.Windows.Forms.MenuItem();
-            this.notifySettingsMenuItem = new System.Windows.Forms.MenuItem();
-            this.menuSeparator5 = new System.Windows.Forms.MenuItem();
-            this.notifyExitMenuItem = new System.Windows.Forms.MenuItem();
-            this.logTextBox = new System.Windows.Forms.TextBox();
-            this.statusStrip = new System.Windows.Forms.StatusStrip();
-            this.statusStripStatus = new System.Windows.Forms.ToolStripStatusLabel();
-            this.statusStripClient = new System.Windows.Forms.ToolStripStatusLabel();
-            this.statusStripServer = new System.Windows.Forms.ToolStripStatusLabel();
-            this.statusStripSerial = new System.Windows.Forms.ToolStripStatusLabel();
-            this.menuStrip = new System.Windows.Forms.MenuStrip();
-            this.fileMenu = new System.Windows.Forms.ToolStripMenuItem();
-            this.settingsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.toolStripSeparator2 = new System.Windows.Forms.ToolStripSeparator();
-            this.exitMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.openCommandsFolderMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.helpToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.wikiMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.toolStripSeparator3 = new System.Windows.Forms.ToolStripSeparator();
-            this.checkUpdatesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.toolStripSeparator4 = new System.Windows.Forms.ToolStripSeparator();
-            this.aboutMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.commandsMenu = new System.Windows.Forms.ToolStripMenuItem();
-            this.showCommandsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
-            this.sendAwakeMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.statusStrip.SuspendLayout();
-            this.menuStrip.SuspendLayout();
-            this.SuspendLayout();
-            // 
-            // notifyIcon
-            // 
-            this.notifyIcon.ContextMenu = this.notifyMenu;
-            this.notifyIcon.Text = global::MCEControl.Properties.Resources.App_FullName;
-            this.notifyIcon.Visible = true;
-            this.notifyIcon.DoubleClick += new System.EventHandler(this.notifyIcon_DoubleClick);
-            // 
-            // notifyMenu
-            // 
-            this.notifyMenu.MenuItems.AddRange(new System.Windows.Forms.MenuItem[] {
-            this.notifyStatusMenuItem,
-            this.menuSeparator4,
-            this.notifySettingsMenuItem,
-            this.menuSeparator5,
-            this.notifyExitMenuItem});
-            // 
-            // notifyStatusMenuItem
-            // 
-            this.notifyStatusMenuItem.Index = 0;
-            this.notifyStatusMenuItem.Text = "&View Status...";
-            this.notifyStatusMenuItem.Click += new System.EventHandler(this.notifyIcon_DoubleClick);
-            // 
-            // menuSeparator4
-            // 
-            this.menuSeparator4.Index = 1;
-            this.menuSeparator4.Text = "-";
-            // 
-            // notifySettingsMenuItem
-            // 
-            this.notifySettingsMenuItem.Index = 2;
-            this.notifySettingsMenuItem.Text = "&Settings...";
-            this.notifySettingsMenuItem.Click += new System.EventHandler(this.settingsMenuItem_Click);
-            // 
-            // menuSeparator5
-            // 
-            this.menuSeparator5.Index = 3;
-            this.menuSeparator5.Text = "-";
-            // 
-            // notifyExitMenuItem
-            // 
-            this.notifyExitMenuItem.Index = 4;
-            this.notifyExitMenuItem.Text = "&Exit";
-            this.notifyExitMenuItem.Click += new System.EventHandler(this.exitMenuItem_Click);
-            // 
-            // logTextBox
-            // 
-            this.logTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.logTextBox.BorderStyle = System.Windows.Forms.BorderStyle.None;
-            this.logTextBox.Font = new System.Drawing.Font("Lucida Console", 8F);
-            this.logTextBox.Location = new System.Drawing.Point(0, 24);
-            this.logTextBox.Margin = new System.Windows.Forms.Padding(0);
-            this.logTextBox.Multiline = true;
-            this.logTextBox.Name = "logTextBox";
-            this.logTextBox.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.logTextBox.Size = new System.Drawing.Size(784, 494);
-            this.logTextBox.TabIndex = 1;
-            this.logTextBox.WordWrap = false;
-            // 
-            // statusStrip
-            // 
-            this.statusStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.statusStripStatus,
-            this.statusStripClient,
-            this.statusStripServer,
-            this.statusStripSerial});
-            this.statusStrip.LayoutStyle = System.Windows.Forms.ToolStripLayoutStyle.HorizontalStackWithOverflow;
-            this.statusStrip.Location = new System.Drawing.Point(0, 518);
-            this.statusStrip.Name = "statusStrip";
-            this.statusStrip.ShowItemToolTips = true;
-            this.statusStrip.Size = new System.Drawing.Size(784, 22);
-            this.statusStrip.TabIndex = 2;
-            this.statusStrip.Text = "MCE Controller";
-            // 
-            // statusStripStatus
-            // 
-            this.statusStripStatus.BackColor = System.Drawing.SystemColors.Control;
-            this.statusStripStatus.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Text;
-            this.statusStripStatus.DoubleClickEnabled = true;
-            this.statusStripStatus.ImageAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.statusStripStatus.Name = "statusStripStatus";
-            this.statusStripStatus.Size = new System.Drawing.Size(123, 17);
-            this.statusStripStatus.Text = "MCE Controller Status";
-            this.statusStripStatus.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.statusStripStatus.Click += new System.EventHandler(this.statusStripStatus_Click);
-            // 
-            // statusStripClient
-            // 
-            this.statusStripClient.BackColor = System.Drawing.SystemColors.Control;
-            this.statusStripClient.DoubleClickEnabled = true;
-            this.statusStripClient.Image = global::MCEControl.Properties.Resources.Trafficlight_green_icon;
-            this.statusStripClient.ImageAlign = System.Drawing.ContentAlignment.MiddleRight;
-            this.statusStripClient.Margin = new System.Windows.Forms.Padding(10, 3, 0, 2);
-            this.statusStripClient.Name = "statusStripClient";
-            this.statusStripClient.RightToLeft = System.Windows.Forms.RightToLeft.No;
-            this.statusStripClient.Size = new System.Drawing.Size(54, 17);
-            this.statusStripClient.Text = "Client";
-            this.statusStripClient.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.statusStripClient.DoubleClick += new System.EventHandler(this.statusStripClient_Click);
-            // 
-            // statusStripServer
-            // 
-            this.statusStripServer.BackColor = System.Drawing.SystemColors.Control;
-            this.statusStripServer.DoubleClickEnabled = true;
-            this.statusStripServer.Image = global::MCEControl.Properties.Resources.Trafficlight_green_icon;
-            this.statusStripServer.ImageAlign = System.Drawing.ContentAlignment.MiddleRight;
-            this.statusStripServer.Margin = new System.Windows.Forms.Padding(10, 3, 0, 2);
-            this.statusStripServer.Name = "statusStripServer";
-            this.statusStripServer.RightToLeft = System.Windows.Forms.RightToLeft.No;
-            this.statusStripServer.Size = new System.Drawing.Size(55, 17);
-            this.statusStripServer.Text = "Server";
-            this.statusStripServer.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.statusStripServer.DoubleClick += new System.EventHandler(this.statusStripServer_Click);
-            // 
-            // statusStripSerial
-            // 
-            this.statusStripSerial.BackColor = System.Drawing.SystemColors.Control;
-            this.statusStripSerial.DoubleClickEnabled = true;
-            this.statusStripSerial.Image = global::MCEControl.Properties.Resources.Trafficlight_green_icon;
-            this.statusStripSerial.ImageAlign = System.Drawing.ContentAlignment.MiddleRight;
-            this.statusStripSerial.Margin = new System.Windows.Forms.Padding(10, 3, 0, 2);
-            this.statusStripSerial.Name = "statusStripSerial";
-            this.statusStripSerial.RightToLeft = System.Windows.Forms.RightToLeft.No;
-            this.statusStripSerial.Size = new System.Drawing.Size(51, 17);
-            this.statusStripSerial.Text = "Serial";
-            this.statusStripSerial.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            this.statusStripSerial.DoubleClick += new System.EventHandler(this.statusStripSerial_Click);
-            // 
-            // menuStrip
-            // 
-            this.menuStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.fileMenu,
-            this.commandsMenu,
-            this.helpToolStripMenuItem});
-            this.menuStrip.Location = new System.Drawing.Point(0, 0);
-            this.menuStrip.Name = "menuStrip";
-            this.menuStrip.Padding = new System.Windows.Forms.Padding(2, 2, 0, 2);
-            this.menuStrip.Size = new System.Drawing.Size(784, 24);
-            this.menuStrip.TabIndex = 3;
-            this.menuStrip.Text = "menuStrip";
-            // 
-            // fileMenu
-            // 
-            this.fileMenu.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.settingsMenuItem,
-            this.toolStripSeparator2,
-            this.exitMenuItem});
-            this.fileMenu.Name = "fileMenu";
-            this.fileMenu.Size = new System.Drawing.Size(37, 20);
-            this.fileMenu.Text = "&File";
-            // 
-            // settingsMenuItem
-            // 
-            this.settingsMenuItem.Name = "settingsMenuItem";
-            this.settingsMenuItem.Size = new System.Drawing.Size(180, 22);
-            this.settingsMenuItem.Text = "&Settings...";
-            this.settingsMenuItem.Click += new System.EventHandler(this.settingsMenuItem_Click);
-            // 
-            // toolStripSeparator2
-            // 
-            this.toolStripSeparator2.Name = "toolStripSeparator2";
-            this.toolStripSeparator2.Size = new System.Drawing.Size(177, 6);
-            // 
-            // exitMenuItem
-            // 
-            this.exitMenuItem.Name = "exitMenuItem";
-            this.exitMenuItem.Size = new System.Drawing.Size(180, 22);
-            this.exitMenuItem.Text = "E&xit";
-            this.exitMenuItem.Click += new System.EventHandler(this.exitMenuItem_Click);
-            // 
-            // openCommandsFolderMenuItem
-            // 
-            this.openCommandsFolderMenuItem.Name = "openCommandsFolderMenuItem";
-            this.openCommandsFolderMenuItem.Size = new System.Drawing.Size(212, 22);
-            this.openCommandsFolderMenuItem.Text = "&Open .commands folder...";
-            this.openCommandsFolderMenuItem.Click += new System.EventHandler(this.openCommandsFolderMenuItem_Click);
-            // 
-            // helpToolStripMenuItem
-            // 
-            this.helpToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.wikiMenuItem,
-            this.toolStripSeparator3,
-            this.checkUpdatesMenuItem,
-            this.toolStripSeparator4,
-            this.aboutMenuItem});
-            this.helpToolStripMenuItem.Name = "helpToolStripMenuItem";
-            this.helpToolStripMenuItem.Size = new System.Drawing.Size(44, 20);
-            this.helpToolStripMenuItem.Text = "&Help";
-            // 
-            // wikiMenuItem
-            // 
-            this.wikiMenuItem.Name = "wikiMenuItem";
-            this.wikiMenuItem.Size = new System.Drawing.Size(180, 22);
-            this.wikiMenuItem.Text = "&Wiki";
-            this.wikiMenuItem.Click += new System.EventHandler(this.wikiMenuItem_Click);
-            // 
-            // toolStripSeparator3
-            // 
-            this.toolStripSeparator3.Name = "toolStripSeparator3";
-            this.toolStripSeparator3.Size = new System.Drawing.Size(177, 6);
-            // 
-            // checkUpdatesMenuItem
-            // 
-            this.checkUpdatesMenuItem.Name = "checkUpdatesMenuItem";
-            this.checkUpdatesMenuItem.Size = new System.Drawing.Size(180, 22);
-            this.checkUpdatesMenuItem.Text = "&Check for updates";
-            this.checkUpdatesMenuItem.Click += new System.EventHandler(this.updatesMenuItem_Click);
-            // 
-            // toolStripSeparator4
-            // 
-            this.toolStripSeparator4.Name = "toolStripSeparator4";
-            this.toolStripSeparator4.Size = new System.Drawing.Size(177, 6);
-            // 
-            // aboutMenuItem
-            // 
-            this.aboutMenuItem.Name = "aboutMenuItem";
-            this.aboutMenuItem.Size = new System.Drawing.Size(180, 22);
-            this.aboutMenuItem.Text = "&About...";
-            this.aboutMenuItem.Click += new System.EventHandler(this.aboutMenuItem_Click);
-            // 
-            // commandsMenu
-            // 
-            this.commandsMenu.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.showCommandsMenuItem,
-            this.openCommandsFolderMenuItem,
-            this.toolStripSeparator1,
-            this.sendAwakeMenuItem});
-            this.commandsMenu.Name = "commandsMenu";
-            this.commandsMenu.Size = new System.Drawing.Size(81, 20);
-            this.commandsMenu.Text = "&Commands";
-            // 
-            // showCommandsMenuItem
-            // 
-            this.showCommandsMenuItem.Name = "showCommandsMenuItem";
-            this.showCommandsMenuItem.Size = new System.Drawing.Size(212, 22);
-            this.showCommandsMenuItem.Text = "Show &Commands...";
-            this.showCommandsMenuItem.Click += new System.EventHandler(this.commandsMenuItem_Click);
-            // 
-            // toolStripSeparator1
-            // 
-            this.toolStripSeparator1.Name = "toolStripSeparator1";
-            this.toolStripSeparator1.Size = new System.Drawing.Size(209, 6);
-            // 
-            // sendAwakeMenuItem
-            // 
-            this.sendAwakeMenuItem.Name = "sendAwakeMenuItem";
-            this.sendAwakeMenuItem.Size = new System.Drawing.Size(212, 22);
-            this.sendAwakeMenuItem.Text = "Send &Awake Signal";
-            this.sendAwakeMenuItem.Click += new System.EventHandler(this.sendAwakeMenuItem_Click);
-            // 
-            // MainWindow
-            // 
-            this.AutoScaleBaseSize = new System.Drawing.Size(5, 13);
-            this.BackColor = System.Drawing.SystemColors.Window;
-            this.ClientSize = new System.Drawing.Size(784, 540);
-            this.Controls.Add(this.statusStrip);
-            this.Controls.Add(this.menuStrip);
-            this.Controls.Add(this.logTextBox);
-            this.HelpButton = true;
-            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
-            this.MainMenuStrip = this.menuStrip;
-            this.MaximizeBox = false;
-            this.MinimizeBox = false;
-            this.Name = "MainWindow";
-            this.Text = "MCE Controller";
-            this.HelpButtonClicked += new System.ComponentModel.CancelEventHandler(this.helpMenuItem_Click);
-            this.Closing += new System.ComponentModel.CancelEventHandler(this.mainWindow_Closing);
-            this.Load += new System.EventHandler(this.mainWindow_Load);
-            this.Layout += new System.Windows.Forms.LayoutEventHandler(this.MainWindow_Layout);
-            this.statusStrip.ResumeLayout(false);
-            this.statusStrip.PerformLayout();
-            this.menuStrip.ResumeLayout(false);
-            this.menuStrip.PerformLayout();
-            this.ResumeLayout(false);
-            this.PerformLayout();
-
-        }
-
-        #endregion
-
         // WinForms layout with MenuStrip and StatusStrip has issues (apparently) with
         // Anchor. This works around that.
         private void MainWindow_Layout(object sender, LayoutEventArgs e) {
@@ -1170,9 +780,9 @@ namespace MCEControl {
             logTextBox.Location = new System.Drawing.Point(8, menuStrip.Height);
             logTextBox.Size = new System.Drawing.Size(this.ClientSize.Width - logTextBox.Location.X, this.ClientSize.Height - menuStrip.Height - statusStrip.Height);
         }
-        
+
         private void SystemEvents_UserPreferenceChanged(object sender, EventArgs e) {
-            logTextBox.Font = new System.Drawing.Font(logTextBox.Font.FontFamily, menuStrip.Font.SizeInPoints-1, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+            logTextBox.Font = new System.Drawing.Font(logTextBox.Font.FontFamily, menuStrip.Font.SizeInPoints - 1, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
         }
     }
 }

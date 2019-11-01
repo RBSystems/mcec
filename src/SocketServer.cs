@@ -29,6 +29,7 @@ namespace MCEControl {
         // total number of clients connected at any time. Since multiple threads
         // can access this variable, modifying this variable should be done
         // in a thread safe manner
+        // TODO: Ask and asnwer the question: "Why not just use _clientList.Count?". It has "snapshot semantics". 
         private int _clientCount;
 
         #region IDisposable Members
@@ -49,10 +50,12 @@ namespace MCEControl {
                 _clientList.TryRemove(i, out socket);
                 if (socket != null) {
                     Log4.Debug("Closing Socket #" + i);
+                    socket.Shutdown(SocketShutdown.Both);
                     socket.Close();
                 }
             }
             if (_mainSocket != null) {
+                _mainSocket.Shutdown(SocketShutdown.Both);
                 _mainSocket.Close();
                 _mainSocket = null;
             }
@@ -175,6 +178,7 @@ namespace MCEControl {
                 Log4.Debug("Closing Socket #" + serverReplyContext.ClientNumber);
                 Interlocked.Decrement(ref _clientCount);
                 SendNotification(ServiceNotification.ClientDisconnected, CurrentStatus, serverReplyContext);
+                socket.Shutdown(SocketShutdown.Both);
                 socket.Close();
             }
         }
@@ -190,8 +194,7 @@ namespace MCEControl {
         enum TelnetOptions {
             SGA = 3
         }
-
-
+        
         // This the call back function which will be invoked when the socket
         // detects any client writing of data on the stream
         private void OnDataReceived(IAsyncResult async) {
@@ -208,6 +211,7 @@ namespace MCEControl {
                     return;
                 }
 
+                // TODO: Shouldn't all this logic be the same between Client/Server?
                 // _currentCommand contains the current command we are parsing out and 
                 // _currentIndex is the index into it
                 //int n = 0;
@@ -253,7 +257,7 @@ namespace MCEControl {
                         case (byte)'\0':
                             // Skip any delimiter chars that might have been left from earlier input
                             if (clientContext.CmdBuilder.Length > 0) {
-                                SendNotification(ServiceNotification.ReceivedData, CurrentStatus, clientContext, clientContext.CmdBuilder.ToString());
+                                SendNotification(ServiceNotification.ReceivedLine, CurrentStatus, clientContext, clientContext.CmdBuilder.ToString());
                                 // Reset n to start new command
                                 clientContext.CmdBuilder.Clear();
                             }
@@ -305,6 +309,7 @@ namespace MCEControl {
                 }
                 catch (SocketException err) {
                     // Connect failed so close the socket and try the next address
+                    clientSocket.Shutdown(SocketShutdown.Both);
                     clientSocket.Close();
                     clientSocket = null;
                     SendNotification(ServiceNotification.Wakeup, CurrentStatus, null,
@@ -364,17 +369,16 @@ namespace MCEControl {
         }
 
         #region Nested type: ServerReplyContext
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "none")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "It works")]
         public class ServerReplyContext : Reply {
             internal StringBuilder CmdBuilder { get; set; }
             internal Socket Socket { get; set; }
             internal int ClientNumber { get; set; }
-
-
+            
             // Buffer to store the data sent by the client
+            // TODO: Make a Property
             [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1051:Do not declare visible instance fields", Justification = "none")]
             public byte[] DataBuffer = new byte[1024];
-
             private readonly SocketServer _server;
 
             // Constructor which takes a Socket and a client number
@@ -390,7 +394,7 @@ namespace MCEControl {
                 set { }
             }
 
-            public override void Write(String text) {
+            public override void SendReply(String text) {
                 _server.Send(text, this);
             }
         }

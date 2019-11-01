@@ -18,7 +18,7 @@ namespace MCEControl {
         None = 0,
         Initialized = 1,
         StatusChange,
-        ReceivedData,
+        ReceivedLine,
         ClientConnected,
         ClientDisconnected,
         Write,
@@ -45,9 +45,9 @@ namespace MCEControl {
     /// </summary>
     public abstract class Reply {
         //public abstract String Command { get; set; }
-        public abstract void Write(String text);
+        public abstract void SendReply(String text);
         public void WriteLine(String textLine) {
-            Write(textLine + Environment.NewLine);
+            SendReply(textLine + Environment.NewLine);
         }
     }
 
@@ -56,6 +56,7 @@ namespace MCEControl {
         protected ILog Log4 { get => log4; set => log4 = value; }
 
         protected ServiceBase() {
+            CurrentStatus  = ServiceStatus.Stopped;
             Log4 = log4net.LogManager.GetLogger("MCEControl");
         }
 

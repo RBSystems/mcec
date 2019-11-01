@@ -18,7 +18,7 @@
     <OutputType>WinExe</OutputType>
     <RootNamespace>MCEControl</RootNamespace>
     <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
-    <StartupObject>MCEControl.MainWindow</StartupObject>
+    <StartupObject>MCEControl.Program</StartupObject>
     <FileUpgradeFlags>
     </FileUpgradeFlags>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
@@ -97,6 +97,12 @@
   <PropertyGroup>
     <SignManifests>true</SignManifests>
   </PropertyGroup>
+  <PropertyGroup />
+  <PropertyGroup />
+  <PropertyGroup />
+  <PropertyGroup>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="System">
       <Name>System</Name>
@@ -107,6 +113,7 @@
     <Reference Include="System.Drawing">
       <Name>System.Drawing</Name>
     </Reference>
+    <Reference Include="System.Web" />
     <Reference Include="System.Windows.Forms">
       <Name>System.Windows.Forms</Name>
     </Reference>
@@ -115,8 +122,11 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AboutBox.cs">
+    <Compile Include="About.cs">
       <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="About.Designer.cs">
+      <DependentUpon>About.cs</DependentUpon>
     </Compile>
     <Compile Include="AssemblyFileVersion.cs">
       <AutoGen>True</AutoGen>
@@ -126,7 +136,17 @@
     <Compile Include="AssemblyInfo.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="Commands.cs">
+    <Compile Include="Command.cs" />
+    <Compile Include="CommandFileWatcher.cs" />
+    <Compile Include="Commands.cs" />
+    <Compile Include="MainWindow.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="MainWindow.Designer.cs">
+      <DependentUpon>MainWindow.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Program.cs" />
+    <Compile Include="SerializedCommands.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="CommandWindow.cs">
@@ -137,6 +157,11 @@
     </Compile>
     <Compile Include="FileSystemSafeWatcher.cs" />
     <Compile Include="Logger.cs" />
+    <Compile Include="CharsCommand.cs" />
+    <Compile Include="PauseCommand.cs" />
+    <Compile Include="TextBoxExt.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="UserActivityMonitor.cs" />
     <Compile Include="UserActivityMonitor\GlobalEventProvider.cs">
       <SubType>Component</SubType>
@@ -149,14 +174,11 @@
     <Compile Include="LatestVersion.cs" />
     <Compile Include="UserActivityMonitor\MouseEventExtArgs.cs" />
     <Compile Include="SerialServer.cs" />
-    <Compile Include="KeyboardCommand.cs">
+    <Compile Include="SendInputCommand.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="MainWindow.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="MouseCommands.cs" />
-    <Compile Include="ProcessCommands.cs">
+    <Compile Include="MouseCommand.cs" />
+    <Compile Include="StartProcessCommand.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Properties\Resources.Designer.cs">
@@ -164,7 +186,7 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
-    <Compile Include="SendMessageCommands.cs">
+    <Compile Include="SendMessageCommand.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="ServiceBase.cs" />
@@ -177,14 +199,11 @@
     <Compile Include="SettingsDialog.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="ShutdownCommands.cs">
+    <Compile Include="ShutdownCommand.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="SocketServer.cs" />
-    <Compile Include="SystemControl.cs">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="TerminalCommands.cs" />
+    <Compile Include="McecCommand.cs" />
     <Compile Include="UserActivityMonitor\NativeMethods.cs" />
     <Compile Include="Util.cs">
       <SubType>Code</SubType>
@@ -296,21 +315,22 @@
     <Compile Include="WindowsInput\Native\XButton.cs" />
     <Compile Include="WindowsInput\WindowsInputDeviceStateAdaptor.cs" />
     <Compile Include="WindowsInput\WindowsInputMessageDispatcher.cs" />
+    <EmbeddedResource Include="About.resx">
+      <DependentUpon>About.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="MainWindow.resx">
+      <DependentUpon>MainWindow.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Resources\MCEControl.commands" />
+    <Resource Include="app.manifest" />
+    <EmbeddedResource Include="app.config" />
     <None Include="MCEControl1.ruleset" />
     <None Include="Resources\Trafficlight-gray-icon.bmp" />
     <None Include="Resources\Trafficlight-gray-icon.png" />
     <None Include="Resources\Trafficlight-green-icon.png" />
     <None Include="MCEControl.ruleset" />
-    <EmbeddedResource Include="AboutBox.resx">
-      <DependentUpon>AboutBox.cs</DependentUpon>
-      <SubType>Designer</SubType>
-    </EmbeddedResource>
     <EmbeddedResource Include="CommandWindow.resx">
       <DependentUpon>CommandWindow.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="MainWindow.resx">
-      <DependentUpon>MainWindow.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -325,14 +345,10 @@
       <LastGenOutput>AssemblyFileVersion.cs</LastGenOutput>
     </Content>
     <Content Include="Guillen.Icon.ico" />
+    <EmbeddedResource Include="Resources\MCEControl.xslt" />
     <Content Include="Resources\Guillen.Icon.ico" />
     <EmbeddedResource Include="Resources\Builtin.commands" />
     <None Include="Resources\Trafficlight-red-icon.png" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="app.config">
-      <SubType>Designer</SubType>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.0,Profile=Client">

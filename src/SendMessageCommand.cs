@@ -21,28 +21,26 @@ namespace MCEControl {
     /// Summary description for SendMessageCommand.
     /// </summary>
     public class SendMessageCommand : Command {
-         private int msg;
-        [XmlAttribute("Msg")] public int Msg { get => msg; set => msg = value; }
+        private int msg;
+        [XmlAttribute("msg")] public int Msg { get => msg; set => msg = value; }
 
         // This is int so that -1 can be specified in the XML
         private int lParam;
-        [XmlAttribute("lParam")] public int LParam { get => lParam; set => lParam = value; }
+        [XmlAttribute("lparam")] public int LParam { get => lParam; set => lParam = value; }
 
         private int wParam;
-        [XmlAttribute("wParam")] public int WParam { get => wParam; set => wParam = value; }
+        [XmlAttribute("wparam")] public int WParam { get => wParam; set => wParam = value; }
 
-        [XmlAttribute("ClassName")]
+        [XmlAttribute("className")]
         public String ClassName { get; set; }
-        [XmlAttribute("WindowName")]
+        [XmlAttribute("windowname")]
         public String WindowName { get; set; }
 
 
         public SendMessageCommand() {
         }
 
-#pragma warning disable CS3001 // Argument type is not CLS-compliant
-        public SendMessageCommand(String className, String windowName, DWORD msg, DWORD wParam, DWORD lParam) {
-#pragma warning restore CS3001 // Argument type is not CLS-compliant
+        public SendMessageCommand(String className, String windowName, int msg, int wParam, int lParam) {
             ClassName = className;
             WindowName = windowName;
             Msg = (int)msg;
@@ -53,28 +51,33 @@ namespace MCEControl {
         public override string ToString() {
             return $"Cmd=\"{Key}\" Msg=\"{Msg}\" lParam=\"{LParam}\" wParam=\"{WParam}\" ClassName=\"{ClassName}\" WindowName=\"{WindowName}\"";
         }
-        public override void Execute(Reply reply) {
+
+        public override ICommand Clone(Reply reply) => base.Clone(reply, new SendMessageCommand(ClassName, WindowName, Msg, WParam, LParam));
+
+        // ICommand:Execute
+        public override void Execute() {
+
             try {
                 if (ClassName != null) {
                     var procs = Process.GetProcessesByName(ClassName);
                     if (procs.Length > 0) {
                         var h = procs[0].MainWindowHandle;
 
-                        Logger.Instance.Log4.Info($"Cmd: SendMessage {ToString()}");
+                        Logger.Instance.Log4.Info($"{this.GetType().Name}: SendMessage {ToString()}");
                         Win32.SendMessage(h, (DWORD)Msg, (DWORD)WParam, (DWORD)LParam);
                     }
                     else {
-                        Logger.Instance.Log4.Info("Cmd: GetProcessByName for " + ClassName + " failed");
+                        Logger.Instance.Log4.Info($"{this.GetType().Name}: GetProcessByName for {ClassName} failed");
                     }
                 }
                 else {
                     var h = Win32.GetForegroundWindow();
-                    Logger.Instance.Log4.Info($"Cmd: SendMessage (forground window): {ToString()}");
+                    Logger.Instance.Log4.Info($"{this.GetType().Name}: SendMessage (forground window): {ToString()}");
                     Win32.SendMessage(h, (DWORD)Msg, (DWORD)WParam, (DWORD)LParam);
                 }
             }
             catch (Exception e) {
-                Logger.Instance.Log4.Info($"Cmd: SendMessageCommand.Execute failed for {ClassName} with error: {e.Message}");
+                Logger.Instance.Log4.Info($"{this.GetType().Name}: Failed for {ClassName} with error: {e.Message}");
             }
         }
     }

@@ -43,7 +43,7 @@ namespace MCEControl {
             }
         }
 
-        public TextBox LogTextBox {
+        public TextBoxExt LogTextBox {
             get {
                 if (log4 != null) {
                     Hierarchy hierarchy = (Hierarchy)LogManager.GetRepository();
@@ -128,7 +128,6 @@ namespace MCEControl {
             roller.ActivateOptions();
             hierarchy.Root.AddAppender(roller);
 
-            // log to LogTextBox
             TextBoxAppender textbox = new TextBoxAppender {
                 Name = "TextBox",
                 Layout = patternLayout,
@@ -154,14 +153,18 @@ namespace MCEControl {
 
     public class TextBoxAppender : AppenderSkeleton {
         private readonly object lockObj = new object();
-        private TextBox logTextBox;
-        public TextBox LogTextBox {
+        private TextBoxExt logTextBox;
+        public TextBoxExt LogTextBox {
             get => logTextBox;
             set {
                 logTextBox = value;
                 if (value == null) return;
+
+                // Set max # of chars. Given logfile logging there's no need to let a machine 
+                // page memory if MCE Controller has been runnnig long time
+                value.MaxLength = 256 * 1024;
+
                 value.TextChanged += new System.EventHandler(this.LogTextChanged);
-                value.KeyPress += new System.Windows.Forms.KeyPressEventHandler(this.LogKeyPress);
                 var frm = value.FindForm();
                 if (frm != null)
                     frm.FormClosed += delegate { Close(); };
@@ -195,9 +198,7 @@ namespace MCEControl {
                 lock (lockObj) {
                     // Can only update the log in the main window when on the UI thread
                     if (LogTextBox.InvokeRequired)  // (Instance.InvokeRequired || logTextBox.InvokeRequired)
-                        LogTextBox.BeginInvoke((Action)(() => {
-                            LogTextBox.AppendText(RenderLoggingEvent(loggingEvent));
-                        }));
+                        LogTextBox.BeginInvoke((Action)(() => { LogTextBox.AppendText(RenderLoggingEvent(loggingEvent)); }));
                     else {
                         LogTextBox.AppendText(RenderLoggingEvent(loggingEvent));
                     }
@@ -208,21 +209,10 @@ namespace MCEControl {
             }
         }
 
-        // Prevent input into the edit box
-        private void LogKeyPress(object sender, KeyPressEventArgs e) {
-            e.Handled = true;
-        }
-
         // Keep the end of the log visible and prevent it from overflowing
         private void LogTextChanged(object sender, EventArgs e) {
             Debug.Assert(LogTextBox != null);
-            // We don't want to overrun the size a textbox can handle 
-            // limit to 64k
-            if (LogTextBox.TextLength > (64 * 1024)) {
-                LogTextBox.Text = LogTextBox.Text.Remove(0, LogTextBox.Text.IndexOf("\r\n", StringComparison.Ordinal) + 2);
-                LogTextBox.Select(LogTextBox.TextLength, 0);
-            }
-            LogTextBox.ScrollToCaret();
+            //LogTextBox.ScrollToCaret();
         }
     }
 }

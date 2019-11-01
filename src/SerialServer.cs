@@ -167,7 +167,7 @@ namespace MCEControl {
                         string cmd = sb.ToString();
                         sb.Length = 0;
                         if (cmd.Length > 0)
-                            SendNotification(ServiceNotification.ReceivedData,
+                            SendNotification(ServiceNotification.ReceivedLine,
                                             CurrentStatus,
                                             new SerialReplyContext(_serialPort),
                                             cmd);
@@ -210,7 +210,7 @@ namespace MCEControl {
             public SerialReplyContext(SerialPort rs232) {
                 _rs232 = rs232;
             }
-            public override void Write(String text) {
+            public override void SendReply(String text) {
                 if (_rs232 != null && _rs232.IsOpen) {
                     _rs232.Write(text);
                 }

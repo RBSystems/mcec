@@ -21,6 +21,9 @@ using WindowsInput.Native;
 
 namespace MCEControl {
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1501", Justification = "WinForms generated", Scope = "namespace")]
+
+    // CommandWindow presents a modeless window that shows the user all active commands.
+    // Enables testing of commands.
     public partial class CommandWindow : Form {
         private readonly log4net.ILog log4;
 
@@ -31,16 +34,6 @@ namespace MCEControl {
         
         private void CommandWindow_Load(object sender, EventArgs e) {
             Icon = MainWindow.Instance.Icon;
-
-            var orderedKeys = MainWindow.Instance.CmdTable.Keys.Cast<string>().OrderBy(c => c);
-            foreach (string key in orderedKeys) {
-                Command cmd = MainWindow.Instance.CmdTable[key];
-                var item = new ListViewItem(cmd.Key);
-                Match match = Regex.Match(cmd.GetType().ToString(), @"MCEControl\.([A-za-z]+)Command");
-                item.SubItems.Add(match.Groups[1].Value);
-                item.SubItems.Add(cmd.ToString());
-                listCmds.Items.Add(item);
-            }
         }
 
         private void CommandWindow_FormClosing(object sender, FormClosingEventArgs e) {
@@ -51,30 +44,60 @@ namespace MCEControl {
             }
         }
 
-        private void listCmds_ItemActivate(object sender, EventArgs e) {
-
-        }
-
         private void buttonSendChars_Click(object sender, EventArgs e) {
-            textBoxSendCommand.Text = $"chars:{textBoxChars.Text}";
+            if (textBoxChars.TextLength == 1)
+                textBoxSendCommand.Text = textBoxChars.Text;
+            else {
+                textBoxSendCommand.Text = "chars:" + textBoxChars.Text;
+            }
             Send();
         }
 
         private void buttonSend_Click(object sender, EventArgs e) {
-            log4.Debug("buttonSend_Click");
-            Send();
+            foreach (string line in textBoxSendCommand.Lines)
+                Send(line);
+        }
+
+        private static void Send(string line) {
+            Logger.Instance.Log4.Info("Sending Command: " + line);
+            MainWindow.Instance.SendLine(line);
         }
 
         private void Send() {
-            Logger.Instance.Log4.Info("Sending Command: " + textBoxSendCommand.Text);
-            MainWindow.Instance.SendLine(textBoxSendCommand.Text);
+            Send(textBoxSendCommand.Text);
         }
 
         private void listCmds_DoubleClick(object sender, EventArgs e) {
-            log4.Debug("listCmds_DoubleClick");
-            textBoxSendCommand.Text = listCmds.SelectedItems[0].Text;
-            Send();
+            if (listCmds.SelectedItems.Count > 0) {
+                log4.Debug("listCmds_DoubleClick");
+                textBoxSendCommand.Text = listCmds.SelectedItems[0].Text;
+                Send();
+            }
         }
 
+        private void CommandWindow_VisibleChanged(object sender, EventArgs e) {
+            if (!Visible) return;
+            RefreshList();
+        }
+
+        public void RefreshList() { 
+            listCmds.Items.Clear();
+            var orderedKeys = MainWindow.Instance.Invoker.Keys.Cast<string>().OrderBy(c => c);
+            foreach (string key in orderedKeys) {
+                Command cmd = (Command)MainWindow.Instance.Invoker[key];
+                var item = new ListViewItem(cmd.Key);
+                Match match = Regex.Match(cmd.GetType().ToString(), @"MCEControl\.([A-za-z]+)Command");
+                item.SubItems.Add(match.Groups[1].Value);
+                item.SubItems.Add(cmd.ToString());
+                listCmds.Items.Add(item);
+            }
+            // Set column widths to fit longest items
+            listCmds.Columns[0].Width = -1;
+            listCmds.Columns[1].Width = -1;
+            listCmds.Columns[2].Width = -1;
+
+            listCmds.Focus();
+            listCmds.Items[0].Selected = true;
+        }
     }
 }
