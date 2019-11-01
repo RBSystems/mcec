@@ -23,14 +23,14 @@ namespace MCEControl {
     sealed public class SocketServer : ServiceBase, IDisposable {
         // An ConcurrentDictionary is used to keep track of worker sockets that are designed
         // to communicate with each connected client. For thread safety.
-        private readonly ConcurrentDictionary<int, Socket> _clientList = new ConcurrentDictionary<int, Socket>();
+        private readonly ConcurrentDictionary<int, Socket> clientList = new ConcurrentDictionary<int, Socket>();
 
         // The following variable will keep track of the cumulative 
         // total number of clients connected at any time. Since multiple threads
         // can access this variable, modifying this variable should be done
         // in a thread safe manner
         // TODO: Ask and asnwer the question: "Why not just use _clientList.Count?". It has "snapshot semantics". 
-        private int _clientCount;
+        private int clientCount;
 
         #region IDisposable Members
         public void Dispose() {
@@ -40,24 +40,26 @@ namespace MCEControl {
         #endregion
 
         // Disposable members
-        private Socket _mainSocket;
+        private Socket mainSocket;
 
         private void Dispose(bool disposing) {
             Log4.Debug("SocketServer disposing...");
             if (!disposing) return;
-            foreach (var i in _clientList.Keys) {
+            foreach (var i in clientList.Keys) {
                 Socket socket;
-                _clientList.TryRemove(i, out socket);
+                clientList.TryRemove(i, out socket);
                 if (socket != null) {
                     Log4.Debug("Closing Socket #" + i);
-                    socket.Shutdown(SocketShutdown.Both);
+                    if (socket.Connected)
+                        socket.Shutdown(SocketShutdown.Both);
                     socket.Close();
                 }
             }
-            if (_mainSocket != null) {
-                _mainSocket.Shutdown(SocketShutdown.Both);
-                _mainSocket.Close();
-                _mainSocket = null;
+            if (mainSocket != null) {
+                if (mainSocket.Connected)
+                    mainSocket.Shutdown(SocketShutdown.Both);
+                mainSocket.Close();
+                mainSocket = null;
             }
         }
 
@@ -69,18 +71,18 @@ namespace MCEControl {
             try {
                 Log4.Debug("SocketServer Start");
                 // Create the listening socket...
-                _mainSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                mainSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                 var ipLocal = new IPEndPoint(IPAddress.Any, port);
                 // Bind to local IP Address...
                 Log4.Debug("Binding to IP address: " + ipLocal.Address + ":" + ipLocal.Port);
-                _mainSocket.Bind(ipLocal);
+                mainSocket.Bind(ipLocal);
                 // Start listening...
                 Log4.Debug("_mainSocket.Listen");
-                _mainSocket.Listen(4);
+                mainSocket.Listen(4);
                 // Create the call back for any client connections...
                 SetStatus(ServiceStatus.Started);
                 SetStatus(ServiceStatus.Waiting);
-                _mainSocket.BeginAccept(OnClientConnect, null);
+                mainSocket.BeginAccept(OnClientConnect, null);
             }
             catch (SocketException se) {
                 SendNotification(ServiceNotification.Error, CurrentStatus, null, $"Start: {se.Message}, {se.HResult:X} ({se.SocketErrorCode})");
@@ -100,24 +102,24 @@ namespace MCEControl {
         private void OnClientConnect(IAsyncResult async) {
             Log4.Debug("SocketServer OnClientConnect");
 
-            if (_mainSocket == null) return;
+            if (mainSocket == null) return;
             ServerReplyContext serverReplyContext = null;
             try {
                 // Here we complete/end the BeginAccept() asynchronous call
                 // by calling EndAccept() - which returns the reference to
                 // a new Socket object
-                var workerSocket = _mainSocket.EndAccept(async);
+                var workerSocket = mainSocket.EndAccept(async);
 
                 // Now increment the client count for this client 
                 // in a thread safe manner
-                Interlocked.Increment(ref _clientCount);
+                Interlocked.Increment(ref clientCount);
 
                 // Add the workerSocket reference to the list
-                _clientList.GetOrAdd(_clientCount, workerSocket);
+                clientList.GetOrAdd(clientCount, workerSocket);
 
-                serverReplyContext = new ServerReplyContext(this, workerSocket, _clientCount);
+                serverReplyContext = new ServerReplyContext(this, workerSocket, clientCount);
 
-                Log4.Debug("Opened Socket #" + _clientCount);
+                Log4.Debug("Opened Socket #" + clientCount);
 
                 SetStatus(ServiceStatus.Connected);
                 SendNotification(ServiceNotification.ClientConnected, CurrentStatus, serverReplyContext);
@@ -147,7 +149,7 @@ namespace MCEControl {
 
             // Since the main Socket is now free, it can go back and wait for
             // other clients who are attempting to connect
-            _mainSocket.BeginAccept(OnClientConnect, null);
+            mainSocket.BeginAccept(OnClientConnect, null);
         }
 
         // Start waiting for data from the client
@@ -173,10 +175,10 @@ namespace MCEControl {
             // Remove the reference to the worker socket of the closed client
             // so that this object will get garbage collected
             Socket socket;
-            _clientList.TryRemove(serverReplyContext.ClientNumber, out socket);
+            clientList.TryRemove(serverReplyContext.ClientNumber, out socket);
             if (socket != null) {
                 Log4.Debug("Closing Socket #" + serverReplyContext.ClientNumber);
-                Interlocked.Decrement(ref _clientCount);
+                Interlocked.Decrement(ref clientCount);
                 SendNotification(ServiceNotification.ClientDisconnected, CurrentStatus, serverReplyContext);
                 socket.Shutdown(SocketShutdown.Both);
                 socket.Close();
@@ -199,7 +201,7 @@ namespace MCEControl {
         // detects any client writing of data on the stream
         private void OnDataReceived(IAsyncResult async) {
             var clientContext = (ServerReplyContext)async.AsyncState;
-            if (_mainSocket == null || !clientContext.Socket.Connected) return;
+            if (mainSocket == null || !clientContext.Socket.Connected) return;
             try {
                 // Complete the BeginReceive() asynchronous call by EndReceive() method
                 // which will return the number of characters written to the stream 
@@ -346,13 +348,13 @@ namespace MCEControl {
         public override void Send(string text, Reply replyContext = null) {
             if (text is null) throw new ArgumentNullException(nameof(text));
             if (CurrentStatus != ServiceStatus.Connected ||
-                _mainSocket == null)
+                mainSocket == null)
                 return;
 
             if (replyContext == null) {
-                foreach (var i in _clientList.Keys) {
+                foreach (var i in clientList.Keys) {
                     Socket client;
-                    if (_clientList.TryGetValue(i, out client)) {
+                    if (clientList.TryGetValue(i, out client)) {
                         Reply reply = new ServerReplyContext(this, client, i);
                         Send(text, reply);
                     }
